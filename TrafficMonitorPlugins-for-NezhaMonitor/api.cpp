@@ -2,6 +2,7 @@
 #include "api.h"
 #include <curl/curl.h>
 #include <stdexcept>
+#include "log.h"
 NezhaAPI::NezhaAPI(const std::string& dashboardUrl,
     const std::string& username,
     const std::string& password)
@@ -22,7 +23,7 @@ std::future<json> NezhaAPI::getServer(int id) {
         authenticate();
         std::string url = baseUrl + "/server";
         json resp = httpRequest("GET", url, "", token);
-
+        
         // 筛选指定id的服务器
         if (resp.contains("data") && resp["data"].is_array()) {
             for (const auto& server : resp["data"]) {
@@ -31,9 +32,12 @@ std::future<json> NezhaAPI::getServer(int id) {
                 }
             }
             // 未找到则返回错误信息
+            //logMessage("返回: " + resp.dump());
             return json{ {"error", "未找到指定id的服务器"}, {"id", id} };
+
         }
         // 返回原始响应（可能是错误或格式不符）
+        //logMessage("返回: " + resp.dump());
         return resp;
         });
 }
@@ -69,7 +73,6 @@ bool NezhaAPI::testConnection() {
         return false;
     }
 }
-
 std::string NezhaAPI::trimSlash(const std::string& url) {
     if (!url.empty() && url.back() == '/')
         return url.substr(0, url.size() - 1);
@@ -85,7 +88,7 @@ json NezhaAPI::httpRequest(const std::string& method,
     const std::string& url,
     const std::string& body,
     const std::string& auth,
-    bool retry /*= true*/) 
+    bool retry /*= true*/)
 {
     CURL* curl = curl_easy_init();
     if (!curl) throw std::runtime_error("Failed to init curl");
@@ -117,16 +120,16 @@ json NezhaAPI::httpRequest(const std::string& method,
     json resp;
     try {
         resp = json::parse(response);
-    } catch (...) {
+    }
+    catch (...) {
         return json{ {"error", "Invalid JSON response"}, {"raw", response} };
     }
 
-    // 如果返回 401 并且还没有重试过
-    if (retry && resp.contains("status") && resp["status"] == 401) {
-        // 清空 token 重新认证
+    // 统一处理 401 和 ApiErrorUnauthorized
+    if (retry && ((resp.contains("status") && resp["status"] == 401) ||
+        (resp.contains("error") && resp["error"] == "ApiErrorUnauthorized"))) {
         token.clear();
         authenticate();
-        // 带新 token 重试一次
         return httpRequest(method, url, body, token, false);
     }
 
@@ -139,9 +142,10 @@ void NezhaAPI::authenticate() {
 
     std::string url = baseUrl + "/login";
     json payload = { {"username", username}, {"password", password} };
-    json resp = httpRequest("POST", url, payload.dump());
+    json resp = httpRequest("POST", url, payload.dump(), "");
 
-    if (resp.contains("success") && resp["success"].get<bool>()) {
+    if (resp.contains("success") && resp["success"].get<bool>() &&
+        resp.contains("data") && resp["data"].contains("token")) {
         token = resp["data"]["token"].get<std::string>();
     }
     else {
@@ -153,15 +157,6 @@ std::future<json> NezhaAPI::requestAsync(const std::string& method,
     const std::string& endpoint) {
     return std::async(std::launch::async, [this, method, endpoint]() {
         authenticate();
-        std::string url = baseUrl + endpoint;
-        json resp = httpRequest(method, url, "", token);
-
-        if (resp.contains("status") && resp["status"] == 401) {
-            token.clear();
-            authenticate();
-            resp = httpRequest(method, url, "", token);
-        }
-        return resp;
+        return httpRequest(method, baseUrl + endpoint, "", token);
         });
 }
-

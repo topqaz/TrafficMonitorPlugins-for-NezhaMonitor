@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <filesystem>
 #include <thread>
+#include "log.h"
 namespace fs = std::filesystem;
 
 
@@ -103,6 +104,7 @@ public:
             if (!api && !serverUrl.empty()) {
                 api = std::make_unique<NezhaAPI>(serverUrl, username, password);
             }
+            
             if (api) {
                 double totalUpBps = 0.0, totalDownBps = 0.0;
 

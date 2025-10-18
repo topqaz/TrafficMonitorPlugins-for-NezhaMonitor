@@ -153,6 +153,7 @@
   <ItemGroup>
     <ClInclude Include="api.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="log.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PluginInterface.h" />
     <ClInclude Include="SettingsDialog.h" />
@@ -160,6 +161,7 @@
   <ItemGroup>
     <ClCompile Include="api.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="log.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="SettingsDialog.cpp" />
   </ItemGroup>
